@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 # Configuration defaults
 DEFAULT_CONFIG = {
-    "query": "default query",
+    "queries": [],  # A list of keywords
     "rankingDifficultyStart": 1,
     "rankingDifficultyEnd": 100,
     "searchVolumeMin": 500
@@ -18,25 +18,30 @@ RESULT_FILE = "keywords_results.csv"
 # Function to load configuration
 def load_config():
     # Read from GitHub Actions inputs
-    query = os.getenv("QUERY")
+    queries = os.getenv("QUERIES")
     ranking_difficulty_start = os.getenv("RANKING_DIFFICULTY_START")
     ranking_difficulty_end = os.getenv("RANKING_DIFFICULTY_END")
     search_volume_min = os.getenv("SEARCH_VOLUME_MIN")
 
-    # Check for config.json as fallback
-    if not query or not ranking_difficulty_start or not ranking_difficulty_end or not search_volume_min:
+    # Fallback to config.json
+    config = DEFAULT_CONFIG
+    if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r") as f:
-            config = json.load(f)
-            query = query or config.get("query", DEFAULT_CONFIG["query"])
-            ranking_difficulty_start = int(ranking_difficulty_start or config.get("rankingDifficultyStart", DEFAULT_CONFIG["rankingDifficultyStart"]))
-            ranking_difficulty_end = int(ranking_difficulty_end or config.get("rankingDifficultyEnd", DEFAULT_CONFIG["rankingDifficultyEnd"]))
-            search_volume_min = int(search_volume_min or config.get("searchVolumeMin", DEFAULT_CONFIG["searchVolumeMin"]))
+            config.update(json.load(f))
+
+    queries = queries.split(",") if queries else config.get("queries", [])
+    ranking_difficulty_start = int(ranking_difficulty_start or config.get("rankingDifficultyStart", DEFAULT_CONFIG["rankingDifficultyStart"]))
+    ranking_difficulty_end = int(ranking_difficulty_end or config.get("rankingDifficultyEnd", DEFAULT_CONFIG["rankingDifficultyEnd"]))
+    search_volume_min = int(search_volume_min or config.get("searchVolumeMin", DEFAULT_CONFIG["searchVolumeMin"]))
+
+    if not queries:
+        raise ValueError("At least one query must be provided either via GitHub Actions or config.json.")
 
     return {
-        "query": query,
-        "rankingDifficultyStart": int(ranking_difficulty_start),
-        "rankingDifficultyEnd": int(ranking_difficulty_end),
-        "searchVolumeMin": int(search_volume_min)
+        "queries": queries,
+        "rankingDifficultyStart": ranking_difficulty_start,
+        "rankingDifficultyEnd": ranking_difficulty_end,
+        "searchVolumeMin": search_volume_min
     }
 
 # Function to make API request
@@ -67,30 +72,34 @@ def fetch_data(ranking_difficulty, query, search_volume_min):
 # Main function to run queries
 def main():
     config = load_config()
-    query = config["query"]
+    queries = config["queries"]
     ranking_difficulty_start = config["rankingDifficultyStart"]
     ranking_difficulty_end = config["rankingDifficultyEnd"]
     search_volume_min = config["searchVolumeMin"]
 
     all_results = []
 
-    def process_batch(ranking_difficulty):
+    def process_batch(ranking_difficulty, query):
         try:
             data = fetch_data(ranking_difficulty, query, search_volume_min)
             keywords = data.get("keywords", [])
+            for keyword in keywords:
+                keyword["query"] = query  # Add query for tracking
             all_results.extend(keywords)
         except Exception as e:
-            print(f"Error fetching data for ranking difficulty {ranking_difficulty}: {e}")
+            print(f"Error fetching data for query '{query}' with ranking difficulty {ranking_difficulty}: {e}")
 
     with ThreadPoolExecutor(max_workers=10) as executor:
-        executor.map(process_batch, range(ranking_difficulty_start, ranking_difficulty_end + 1))
+        for query in queries:
+            executor.map(lambda rd: process_batch(rd, query), range(ranking_difficulty_start, ranking_difficulty_end + 1))
 
     # Save results to CSV
     with open(RESULT_FILE, mode="w", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=["keyword", "searchVolume", "rankingDifficulty"])
+        writer = csv.DictWriter(file, fieldnames=["query", "keyword", "searchVolume", "rankingDifficulty"])
         writer.writeheader()
         for result in all_results:
             writer.writerow({
+                "query": result.get("query"),
                 "keyword": result.get("keyword"),
                 "searchVolume": result.get("searchVolume"),
                 "rankingDifficulty": result.get("rankingDifficulty")
