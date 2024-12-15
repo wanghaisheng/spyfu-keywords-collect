@@ -22,29 +22,29 @@ on:
         description: "Maximum search volume (default: None)"
         required: false
         default: None
+      filename:  # New input for filename
+        description: "Filename to save the results (default: keywords_results.csv)"
+        required: false
+        default: "keywords_results.csv"
 
 jobs:
   keyword-analysis:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Step 2: Set up Python environment
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: 3.12
 
-      # Step 3: Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install httpx
 
-      # Step 4: Run keyword analysis script
       - name: Run Keyword Analysis Script
         env:
           QUERIES: ${{ inputs.queries }}
@@ -52,14 +52,4 @@ jobs:
           RANKING_DIFFICULTY_END: ${{ inputs.rankingDifficultyEnd }}
           SEARCH_VOLUME_MIN: ${{ inputs.searchVolumeMin }}
           SEARCH_VOLUME_MAX: ${{ inputs.searchVolumeMax }}
-        run: |
-          python main.py
-
-      # Step 5: Commit results to repository
-      - name: Commit results
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Add keyword analysis results"
-          git push
+          FILENAME: ${{ inputs.file
