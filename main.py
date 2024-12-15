@@ -92,6 +92,9 @@ async def process_query(query, config):
 
 def save_to_csv(results, filename="keywords_results.csv"):
     """Save results to a CSV file."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"keywords_results_{timestamp}.csv"
+    
     with open(filename, mode="w", newline="", encoding="utf-8") as csvfile:
         fieldnames = ["query", "keyword", "searchVolume", "rankingDifficulty", "cpc"]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
