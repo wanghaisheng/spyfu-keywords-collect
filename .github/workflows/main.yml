@@ -1,61 +1,65 @@
-name: Fetch Keywords and Save Results
+name: Keyword Analysis Automation
 
 on:
   workflow_dispatch:
     inputs:
-      query:
-        description: "Query for the keyword search"
-        required: true
-        default: "mood tracker"
+      queries:
+        description: "Comma-separated list of keywords (e.g., mood tracker, wellness app)"
+        required: false
       rankingDifficultyStart:
-        description: "Start value for rankingDifficulty"
-        required: true
+        description: "Start value for ranking difficulty (default: 1)"
+        required: false
         default: 1
       rankingDifficultyEnd:
-        description: "End value for rankingDifficulty"
-        required: true
+        description: "End value for ranking difficulty (default: 100)"
+        required: false
         default: 100
       searchVolumeMin:
-        description: "Minimum search volume"
-        required: true
+        description: "Minimum search volume (default: 500)"
+        required: false
         default: 500
+      searchVolumeMax:
+        description: "Maximum search volume (default: None)"
+        required: false
+        default: ""
 
 jobs:
-  fetch-and-commit-results:
+  keyword-analysis:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      # Step 1: Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v3
-        with:
-          persist-credentials: true  # Ensures we can push changes back to the repo
 
+      # Step 2: Set up Python environment
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.9"
+          python-version: 3.10
 
+      # Step 3: Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install httpx
 
-      - name: Run the script
+      # Step 4: Run keyword analysis script
+      - name: Run Keyword Analysis Script
         env:
-          QUERY: ${{ github.event.inputs.query }}
-          RANKING_DIFFICULTY_START: ${{ github.event.inputs.rankingDifficultyStart }}
-          RANKING_DIFFICULTY_END: ${{ github.event.inputs.rankingDifficultyEnd }}
-          SEARCH_VOLUME_MIN: ${{ github.event.inputs.searchVolumeMin }}
+          QUERIES: ${{ inputs.queries }}
+          RANKING_DIFFICULTY_START: ${{ inputs.rankingDifficultyStart }}
+          RANKING_DIFFICULTY_END: ${{ inputs.rankingDifficultyEnd }}
+          SEARCH_VOLUME_MIN: ${{ inputs.searchVolumeMin }}
+          SEARCH_VOLUME_MAX: ${{ inputs.searchVolumeMax }}
         run: |
-          python3 main.py
+          python main.py
 
-      - name: Configure Git
+      # Step 5: Commit results to repository
+      - name: Commit results
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Commit and Push Results
-        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add keywords_results.csv
-          git commit -m "Add keywords results from query '${{ github.event.inputs.query }}'"
-          git push origin HEAD
+          git commit -m "Add keyword analysis results"
+          git push
