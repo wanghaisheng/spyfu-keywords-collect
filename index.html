@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta name="description" content="A mobile simulator designed to demonstrate mobile interface design.">
+  <meta name="keywords" content="mobile, simulator, mobile design, mobile app">
+  <meta name="author" content="Your Name or Company">
+  <meta http-equiv="Content-Language" content="en">
+
+  <link rel="canonical" href="https://www.yourwebsite.com/pc-simulator" />
+  <meta property="og:title" content="PC Simulator">
+  <meta property="og:description" content="A mobile simulator designed to demonstrate mobile interface design.">
+  <meta property="og:image" content="https://www.yourwebsite.com/pc-simulator-image.jpg">
+  <meta property="og:url" content="https://www.yourwebsite.com/pc-simulator">
+  <meta property="og:type" content="website">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="PC Simulator">
+  <meta name="twitter:description" content="A mobile simulator designed to demonstrate mobile interface design.">
+  <meta name="twitter:image" content="https://www.yourwebsite.com/pc-simulator-image.jpg">
+  <meta name="twitter:creator" content="@yourtwitterhandle">
+
+  <link rel="icon" href="https://www.yourwebsite.com/favicon.ico" type="image/x-icon">
+
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-XXXXX-Y"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+    gtag('js', new Date());
+    gtag('config', 'UA-XXXXX-Y');
+  </script>
+
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y) {
+      window.clarity=window.clarity||function(){(clarity.q=clarity.q||[]).push(arguments)};
+      clarity('set', 'anonymizeIP', true);
+      i=l.createElement('script');i.async=1;i.src=r;i.type='text/javascript';
+      t=l.getElementsByTagName('script')[0];t.parentNode.insertBefore(i,t);
+    })(document,window,'script','https://www.clarity.ms/tag/XXXXXX');
+  </script>
+
+  <title>PC Simulator</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #f0f0f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      text-align: center;
+    }
+
+    .mobile-container {
+      width: 360px;
+      height: 640px;
+      border: 16px solid black;
+      border-radius: 16px;
+      background-color: #fff;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .content {
+      font-size: 1.2rem;
+      color: #333;
+    }
+
+    /* Additional Styles */
+    .form-container {
+      margin: 20px 0;
+      text-align: left;
+      display: grid;
+      gap: 15px;
+    }
+
+    .form-container input,
+    .form-container button {
+      padding: 10px;
+      width: 100%;
+      font-size: 1rem;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    .form-container button {
+      background-color: #4CAF50;
+      color: white;
+      cursor: pointer;
+    }
+
+    .form-container button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="mobile-container">
+    <div class="content">
+      <p>Mobile Simulator Screen</p>
+      <p>PC Version: Adjusted for larger screens.</p>
+      
+      <!-- Form to trigger GitHub Action -->
+      <div class="form-container">
+        <input type="text" id="keywords" placeholder="Enter keywords list (comma-separated)" />
+        <input type="number" id="kdMin" placeholder="Enter KD Min" />
+        <input type="number" id="kdMax" placeholder="Enter KD Max" />
+        <input type="number" id="searchVolumeMin" placeholder="Enter Search Volume Min" />
+        <input type="number" id="searchVolumeMax" placeholder="Enter Search Volume Max" />
+        <button onclick="triggerGitHubAction()">Trigger GitHub Action</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function triggerGitHubAction() {
+      const keywords = document.getElementById('keywords').value;
+      const kdMin = document.getElementById('kdMin').value;
+      const kdMax = document.getElementById('kdMax').value;
+      const searchVolumeMin = document.getElementById('searchVolumeMin').value;
+      const searchVolumeMax = document.getElementById('searchVolumeMax').value;
+
+      const data = {
+        queries: keywords,
+        rankingDifficultyStart: kdMin,
+        rankingDifficultyEnd: kdMax,
+        searchVolumeMin: searchVolumeMin,
+        searchVolumeMax: searchVolumeMax
+      };
+
+      fetch('https://your-worker-url.workers.dev', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      })
+      .then(response => response.text())
+      .then(data => {
+        alert('GitHub Action triggered successfully!');
+      })
+      .catch(error => {
+        alert('Failed to trigger GitHub Action');
+        console.error(error);
+      });
+    }
+  </script>
+</body>
+
+</html>
