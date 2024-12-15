@@ -14,6 +14,10 @@ def load_config():
         "searchVolumeMin": os.getenv("SEARCH_VOLUME_MIN", 500),
         "searchVolumeMax": os.getenv("SEARCH_VOLUME_MAX", None),
     }
+    # Parse queries into a list
+    
+    if config["queries"]:
+        config["queries"] = [q.strip() for q in config["queries"].split(",")]
 
     # If GitHub Actions variables are not set, load from config.json
     if not config["queries"]:
@@ -28,9 +32,6 @@ def load_config():
         except FileNotFoundError:
             print("Config file not found, and no environment variables provided.")
 
-    # Parse queries into a list
-    if config["queries"]:
-        config["queries"] = [q.strip() for q in config["queries"].split(",")]
 
     return config
 
