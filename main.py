@@ -55,7 +55,7 @@ async def fetch_data(client, query, ranking_difficulty, search_volume_min, searc
         "isOverview": False,
         "countryCode": "US"
     }
-
+    print('===processing',query,'====',ranking_difficulty)
     try:
         response = await client.post(url, json=payload)
         response.raise_for_status()
