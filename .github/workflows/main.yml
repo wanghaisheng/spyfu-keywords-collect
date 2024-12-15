@@ -9,7 +9,7 @@ on:
       rankingDifficultyStart:
         description: "Start value for ranking difficulty (default: 1)"
         required: false
-        default: 1
+        default: 0
       rankingDifficultyEnd:
         description: "End value for ranking difficulty (default: 100)"
         required: false
@@ -17,11 +17,11 @@ on:
       searchVolumeMin:
         description: "Minimum search volume (default: 500)"
         required: false
-        default: 500
+        default: 0
       searchVolumeMax:
         description: "Maximum search volume (default: None)"
         required: false
-        default: ""
+        default: None
 
 jobs:
   keyword-analysis:
