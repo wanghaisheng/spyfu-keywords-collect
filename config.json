@@ -3,5 +3,5 @@
     "rankingDifficultyStart": 1,
     "rankingDifficultyEnd": 100,
     "searchVolumeMin": 50,
-    "searchVolumeMax": None
+    "searchVolumeMax": ''
 }
