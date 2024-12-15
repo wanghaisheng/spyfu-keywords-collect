@@ -9,7 +9,8 @@ DEFAULT_CONFIG = {
     "queries": [],  # A list of keywords
     "rankingDifficultyStart": 1,
     "rankingDifficultyEnd": 100,
-    "searchVolumeMin": 500
+    "searchVolumeMin": 500,
+    "searchVolumeMax": None
 }
 
 CONFIG_FILE = "config.json"
@@ -22,6 +23,7 @@ def load_config():
     ranking_difficulty_start = os.getenv("RANKING_DIFFICULTY_START")
     ranking_difficulty_end = os.getenv("RANKING_DIFFICULTY_END")
     search_volume_min = os.getenv("SEARCH_VOLUME_MIN")
+    search_volume_max = os.getenv("SEARCH_VOLUME_MAX")
 
     # Fallback to config.json
     config = DEFAULT_CONFIG
@@ -33,6 +35,7 @@ def load_config():
     ranking_difficulty_start = int(ranking_difficulty_start or config.get("rankingDifficultyStart", DEFAULT_CONFIG["rankingDifficultyStart"]))
     ranking_difficulty_end = int(ranking_difficulty_end or config.get("rankingDifficultyEnd", DEFAULT_CONFIG["rankingDifficultyEnd"]))
     search_volume_min = int(search_volume_min or config.get("searchVolumeMin", DEFAULT_CONFIG["searchVolumeMin"]))
+    search_volume_max = int(search_volume_max) if search_volume_max else config.get("searchVolumeMax")
 
     if not queries:
         raise ValueError("At least one query must be provided either via GitHub Actions or config.json.")
@@ -41,18 +44,23 @@ def load_config():
         "queries": queries,
         "rankingDifficultyStart": ranking_difficulty_start,
         "rankingDifficultyEnd": ranking_difficulty_end,
-        "searchVolumeMin": search_volume_min
+        "searchVolumeMin": search_volume_min,
+        "searchVolumeMax": search_volume_max
     }
 
 # Function to make API request
-def fetch_data(ranking_difficulty, query, search_volume_min):
+def fetch_data(ranking_difficulty, query, search_volume_min, search_volume_max):
     url = "https://www.spyfu.com/NsaApi/RelatedKeyword/GetPhraseMatchedKeywords"
+    ranges = [
+        {"field": "rankingDifficulty", "min": ranking_difficulty, "max": ranking_difficulty},
+        {"field": "searchVolume", "min": search_volume_min}
+    ]
+    if search_volume_max is not None:
+        ranges.append({"field": "searchVolume", "max": search_volume_max})
+
     payload = {
         "facets": {
-            "ranges": [
-                {"field": "rankingDifficulty", "min": ranking_difficulty, "max": ranking_difficulty},
-                {"field": "searchVolume", "min": search_volume_min}
-            ],
+            "ranges": ranges,
             "terms": []
         },
         "pageSize": 50,
@@ -76,12 +84,13 @@ def main():
     ranking_difficulty_start = config["rankingDifficultyStart"]
     ranking_difficulty_end = config["rankingDifficultyEnd"]
     search_volume_min = config["searchVolumeMin"]
+    search_volume_max = config["searchVolumeMax"]
 
     all_results = []
 
     def process_batch(ranking_difficulty, query):
         try:
-            data = fetch_data(ranking_difficulty, query, search_volume_min)
+            data = fetch_data(ranking_difficulty, query, search_volume_min, search_volume_max)
             keywords = data.get("keywords", [])
             for keyword in keywords:
                 keyword["query"] = query  # Add query for tracking
