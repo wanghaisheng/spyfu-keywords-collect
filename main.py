@@ -1,44 +1,52 @@
+import os
+import json
 import httpx
 import csv
-import time
-import concurrent.futures
-import json
-import os
-import sys
+from concurrent.futures import ThreadPoolExecutor
 
-# Define the API URL
-url = "https://www.spyfu.com/NsaApi/RelatedKeyword/GetPhraseMatchedKeywords"
+# Configuration defaults
+DEFAULT_CONFIG = {
+    "query": "default query",
+    "rankingDifficultyStart": 1,
+    "rankingDifficultyEnd": 100,
+    "searchVolumeMin": 500
+}
 
-# Load configuration: check environment variables first, then fallback to config.json
+CONFIG_FILE = "config.json"
+RESULT_FILE = "keywords_results.csv"
+
+# Function to load configuration
 def load_config():
-    config = {}
+    # Read from GitHub Actions inputs
+    query = os.getenv("QUERY")
+    ranking_difficulty_start = os.getenv("RANKING_DIFFICULTY_START")
+    ranking_difficulty_end = os.getenv("RANKING_DIFFICULTY_END")
+    search_volume_min = os.getenv("SEARCH_VOLUME_MIN")
 
-    # Check environment variables (for GitHub Actions or other CI/CD tools)
-    config['rankingDifficultyStart'] = int(os.getenv('RANKING_DIFFICULTY_START', 1))
-    config['rankingDifficultyEnd'] = int(os.getenv('RANKING_DIFFICULTY_END', 100))
-    config['searchVolumeMin'] = int(os.getenv('SEARCH_VOLUME_MIN', 500))
-    config['searchVolumeMax'] = os.getenv('SEARCH_VOLUME_MAX', None)
-    config['query'] = os.getenv('QUERY', None)
+    # Check for config.json as fallback
+    if not query or not ranking_difficulty_start or not ranking_difficulty_end or not search_volume_min:
+        with open(CONFIG_FILE, "r") as f:
+            config = json.load(f)
+            query = query or config.get("query", DEFAULT_CONFIG["query"])
+            ranking_difficulty_start = int(ranking_difficulty_start or config.get("rankingDifficultyStart", DEFAULT_CONFIG["rankingDifficultyStart"]))
+            ranking_difficulty_end = int(ranking_difficulty_end or config.get("rankingDifficultyEnd", DEFAULT_CONFIG["rankingDifficultyEnd"]))
+            search_volume_min = int(search_volume_min or config.get("searchVolumeMin", DEFAULT_CONFIG["searchVolumeMin"]))
 
-    # If any required variables are missing, fall back to `config.json`
-    if not config['query']:
-        try:
-            with open('config.json', 'r') as file:
-                json_config = json.load(file)
-                config.update(json_config)
-        except FileNotFoundError:
-            print("Neither environment variables nor config.json are available. Exiting.")
-            sys.exit(1)
-
-    return config
-
-# Define the request payload template
-def get_payload(query, rankingDifficulty, searchVolumeMin):
     return {
+        "query": query,
+        "rankingDifficultyStart": int(ranking_difficulty_start),
+        "rankingDifficultyEnd": int(ranking_difficulty_end),
+        "searchVolumeMin": int(search_volume_min)
+    }
+
+# Function to make API request
+def fetch_data(ranking_difficulty, query, search_volume_min):
+    url = "https://www.spyfu.com/NsaApi/RelatedKeyword/GetPhraseMatchedKeywords"
+    payload = {
         "facets": {
             "ranges": [
-                {"field": "rankingDifficulty", "min": rankingDifficulty, "max": rankingDifficulty},
-                {"field": "searchVolume", "min": searchVolumeMin, "max": None}
+                {"field": "rankingDifficulty", "min": ranking_difficulty, "max": ranking_difficulty},
+                {"field": "searchVolume", "min": search_volume_min}
             ],
             "terms": []
         },
@@ -52,71 +60,43 @@ def get_payload(query, rankingDifficulty, searchVolumeMin):
         "countryCode": "US"
     }
 
-# Function to fetch keywords from API
-def fetch_keywords(page, query, rankingDifficulty, searchVolumeMin):
-    payload = get_payload(query, rankingDifficulty, searchVolumeMin)
-    payload['startingRow'] = (page - 1) * payload['pageSize'] + 1
+    response = httpx.post(url, json=payload)
+    response.raise_for_status()
+    return response.json()
 
-    # Make the HTTP request
-    with httpx.Client() as client:
-        response = client.post(url, json=payload)
-        if response.status_code == 200:
-            data = response.json()
-            keywords = data.get('keywords', [])
-            return keywords
-        else:
-            print(f"Error on request {page} for rankingDifficulty {rankingDifficulty}: {response.status_code}")
-            return []
+# Main function to run queries
+def main():
+    config = load_config()
+    query = config["query"]
+    ranking_difficulty_start = config["rankingDifficultyStart"]
+    ranking_difficulty_end = config["rankingDifficultyEnd"]
+    search_volume_min = config["searchVolumeMin"]
 
-# Read keywords (from GitHub Action input or urls.txt)
-def get_keywords_from_input():
-    # Check if GitHub Action input (via sys.argv or environment variables) or file is available
-    if len(sys.argv) > 1:
-        # Keywords passed as comma-separated values in GitHub Action input
-        keywords_input = sys.argv[1]
-        return keywords_input.split(",")
-    
-    # If no GitHub Action input, check for 'urls.txt' file
-    try:
-        with open("urls.txt", "r") as file:
-            keywords = file.read().strip().splitlines()
-        return keywords
-    except FileNotFoundError:
-        print("No GitHub input or 'urls.txt' file found, exiting.")
-        sys.exit(1)
+    all_results = []
 
-# Read the config settings
-config = load_config()
+    def process_batch(ranking_difficulty):
+        try:
+            data = fetch_data(ranking_difficulty, query, search_volume_min)
+            keywords = data.get("keywords", [])
+            all_results.extend(keywords)
+        except Exception as e:
+            print(f"Error fetching data for ranking difficulty {ranking_difficulty}: {e}")
 
-# Read keywords (from GitHub Action input or urls.txt)
-keywords_list = get_keywords_from_input()
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        executor.map(process_batch, range(ranking_difficulty_start, ranking_difficulty_end + 1))
 
-# Set the maximum number of requests to fetch
-max_requests = 100
-results = []
+    # Save results to CSV
+    with open(RESULT_FILE, mode="w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=["keyword", "searchVolume", "rankingDifficulty"])
+        writer.writeheader()
+        for result in all_results:
+            writer.writerow({
+                "keyword": result.get("keyword"),
+                "searchVolume": result.get("searchVolume"),
+                "rankingDifficulty": result.get("rankingDifficulty")
+            })
 
-# Use ThreadPoolExecutor to send requests in batches of 10
-with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-    # Loop through the rankingDifficulty values
-    for rankingDifficulty in range(config['rankingDifficultyStart'], config['rankingDifficultyEnd'] + 1):
-        # Submit the tasks to the executor for each keyword
-        future_to_page = {executor.submit(fetch_keywords, page, keyword, rankingDifficulty, config['searchVolumeMin']): page for page in range(1, max_requests + 1) for keyword in keywords_list}
+    print(f"Results saved to {RESULT_FILE}")
 
-        # Process the results as they complete
-        for future in concurrent.futures.as_completed(future_to_page):
-            keywords = future.result()
-            if keywords:
-                results.extend(keywords)
-        
-        # To avoid hitting the server too quickly, introduce a delay (optional)
-        time.sleep(0.1)  # Adjust sleep time to control request rate
-
-# Save the results to a CSV file
-csv_filename = "keywords_results.csv"
-with open(csv_filename, mode='w', newline='', encoding='utf-8') as file:
-    writer = csv.DictWriter(file, fieldnames=["keyword"])
-    writer.writeheader()
-    for result in results:
-        writer.writerow({"keyword": result})  # Save each keyword
-
-print(f"Saved {len(results)} results to {csv_filename}.")
+if __name__ == "__main__":
+    main()
