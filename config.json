@@ -2,6 +2,4 @@
     "queries": ["mood tracker", "emotion", "mood"],
     "rankingDifficultyStart": 1,
     "rankingDifficultyEnd": 100,
-    "searchVolumeMin": 50,
-    "searchVolumeMax": ''
-}
+    "searchVolumeMin": 50}
