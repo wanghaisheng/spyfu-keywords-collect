@@ -1,5 +1,5 @@
 {
     "queries": ["mood tracker", "emotion", "mood"],
-    "rankingDifficultyStart": 1,
+    "rankingDifficultyStart": 0,
     "rankingDifficultyEnd": 100,
-    "searchVolumeMin": 50}
+    "searchVolumeMin": 0}
