@@ -11,11 +11,12 @@ def load_config():
     config = {
         "queries": os.getenv("QUERIES", None),
         "rankingDifficultyStart": os.getenv("RANKING_DIFFICULTY_START", 1),
-        "rankingDifficultyEnd": os.getenv("RANKING_Difficulty_END", 100),
+        "rankingDifficultyEnd": os.getenv("RANKING_DIFFICULTY_END", 100),
         "searchVolumeMin": os.getenv("SEARCH_VOLUME_MIN", 500),
         "searchVolumeMax": os.getenv("SEARCH_VOLUME_MAX", None),
-        "filename": os.getenv("OUTPUT_FILENAME", None)  # New variable for GitHub Actions filename
+        "filename": os.getenv("FILENAME", "keywords_results.csv")  # Added FILENAME environment variable
     }
+    
     # Parse queries into a list
     if config["queries"]:
         config["queries"] = [q.strip() for q in config["queries"].split(",")]
@@ -30,10 +31,10 @@ def load_config():
                 config["rankingDifficultyEnd"] = file_config.get("rankingDifficultyEnd", 100)
                 config["searchVolumeMin"] = file_config.get("searchVolumeMin", 500)
                 config["searchVolumeMax"] = file_config.get("searchVolumeMax", None)
-                config["filename"] = file_config.get("filename", None)  # Ensure filename is loaded from config if not in env vars
+                config["filename"] = file_config.get("filename", "keywords_results.csv")  # Default filename
         except FileNotFoundError:
             print("Config file not found, and no environment variables provided.")
-    
+
     return config
 
 async def fetch_data(client, query, ranking_difficulty, search_volume_min, search_volume_max):
@@ -56,7 +57,7 @@ async def fetch_data(client, query, ranking_difficulty, search_volume_min, searc
         "isOverview": False,
         "countryCode": "US"
     }
-    print('===processing',query,'====',ranking_difficulty)
+    print('===processing', query, '====', ranking_difficulty)
     try:
         response = await client.post(url, json=payload)
         response.raise_for_status()
@@ -91,14 +92,10 @@ async def process_query(query, config):
                 results.extend(data["keywords"])
     return results
 
-def save_to_csv(results, filename="keywords_results.csv"):
+def save_to_csv(results, filename):
     """Save results to a CSV file."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    if filename:
-        # Use the filename provided by GitHub Actions or config
-        filename = f"{filename}_{timestamp}.csv"
-    else:
-        filename = f"keywords_results_{timestamp}.csv"
+    filename = f"keywords_results_{timestamp}.csv" if filename == "keywords_results.csv" else filename
     
     with open(filename, mode="w", newline="", encoding="utf-8") as csvfile:
         fieldnames = ["query", "keyword", "searchVolume", "rankingDifficulty", "cpc"]
@@ -132,8 +129,8 @@ async def main():
         raw_results = await process_query(query, config)
         all_results.extend(format_results(query, raw_results))
 
-    save_to_csv(all_results, filename=config["filename"])  # Pass the filename from the config
-    print("Results saved to CSV.")
+    save_to_csv(all_results, config["filename"])  # Pass filename to save function
+    print(f"Results saved to {config['filename']}.")
 
 if __name__ == "__main__":
     asyncio.run(main())
