@@ -1,66 +1,48 @@
-import os
-import json
 import httpx
+import asyncio
+import json
 import csv
-from concurrent.futures import ThreadPoolExecutor
+import os
+from typing import Optional
 
-# Configuration defaults
-DEFAULT_CONFIG = {
-    "queries": [],  # A list of keywords
-    "rankingDifficultyStart": 1,
-    "rankingDifficultyEnd": 100,
-    "searchVolumeMin": 500,
-    "searchVolumeMax": None
-}
-
-CONFIG_FILE = "config.json"
-RESULT_FILE = "keywords_results.csv"
-
-# Function to load configuration
 def load_config():
-    # Read from GitHub Actions inputs
-    queries = os.getenv("QUERIES")
-    ranking_difficulty_start = os.getenv("RANKING_DIFFICULTY_START")
-    ranking_difficulty_end = os.getenv("RANKING_DIFFICULTY_END")
-    search_volume_min = os.getenv("SEARCH_VOLUME_MIN")
-    search_volume_max = os.getenv("SEARCH_VOLUME_MAX")
-
-    # Fallback to config.json
-    config = DEFAULT_CONFIG
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r") as f:
-            config.update(json.load(f))
-
-    queries = queries.split(",") if queries else config.get("queries", [])
-    ranking_difficulty_start = int(ranking_difficulty_start or config.get("rankingDifficultyStart", DEFAULT_CONFIG["rankingDifficultyStart"]))
-    ranking_difficulty_end = int(ranking_difficulty_end or config.get("rankingDifficultyEnd", DEFAULT_CONFIG["rankingDifficultyEnd"]))
-    search_volume_min = int(search_volume_min or config.get("searchVolumeMin", DEFAULT_CONFIG["searchVolumeMin"]))
-    search_volume_max = int(search_volume_max) if search_volume_max else config.get("searchVolumeMax")
-
-    if not queries:
-        raise ValueError("At least one query must be provided either via GitHub Actions or config.json.")
-
-    return {
-        "queries": queries,
-        "rankingDifficultyStart": ranking_difficulty_start,
-        "rankingDifficultyEnd": ranking_difficulty_end,
-        "searchVolumeMin": search_volume_min,
-        "searchVolumeMax": search_volume_max
+    """Load configuration from GitHub Actions environment variables or config.json."""
+    config = {
+        "queries": os.getenv("QUERIES", None),
+        "rankingDifficultyStart": os.getenv("RANKING_DIFFICULTY_START", 1),
+        "rankingDifficultyEnd": os.getenv("RANKING_DIFFICULTY_END", 100),
+        "searchVolumeMin": os.getenv("SEARCH_VOLUME_MIN", 500),
+        "searchVolumeMax": os.getenv("SEARCH_VOLUME_MAX", None),
     }
 
-# Function to make API request
-def fetch_data(ranking_difficulty, query, search_volume_min, search_volume_max):
-    url = "https://www.spyfu.com/NsaApi/RelatedKeyword/GetPhraseMatchedKeywords"
-    ranges = [
-        {"field": "rankingDifficulty", "min": ranking_difficulty, "max": ranking_difficulty},
-        {"field": "searchVolume", "min": search_volume_min}
-    ]
-    if search_volume_max is not None:
-        ranges.append({"field": "searchVolume", "max": search_volume_max})
+    # If GitHub Actions variables are not set, load from config.json
+    if not config["queries"]:
+        try:
+            with open("config.json", "r") as f:
+                file_config = json.load(f)
+                config["queries"] = file_config.get("queries", None)
+                config["rankingDifficultyStart"] = file_config.get("rankingDifficultyStart", 1)
+                config["rankingDifficultyEnd"] = file_config.get("rankingDifficultyEnd", 100)
+                config["searchVolumeMin"] = file_config.get("searchVolumeMin", 500)
+                config["searchVolumeMax"] = file_config.get("searchVolumeMax", None)
+        except FileNotFoundError:
+            print("Config file not found, and no environment variables provided.")
 
+    # Parse queries into a list
+    if config["queries"]:
+        config["queries"] = [q.strip() for q in config["queries"].split(",")]
+
+    return config
+
+async def fetch_data(client, query, ranking_difficulty, search_volume_min, search_volume_max):
+    """Fetch data from the API."""
+    url = "https://www.spyfu.com/NsaApi/RelatedKeyword/GetPhraseMatchedKeywords"
     payload = {
         "facets": {
-            "ranges": ranges,
+            "ranges": [
+                {"field": "rankingDifficulty", "min": ranking_difficulty, "max": ranking_difficulty},
+                {"field": "searchVolume", "min": search_volume_min, "max": search_volume_max or None},
+            ],
             "terms": []
         },
         "pageSize": 50,
@@ -73,48 +55,76 @@ def fetch_data(ranking_difficulty, query, search_volume_min, search_volume_max):
         "countryCode": "US"
     }
 
-    response = httpx.post(url, json=payload)
-    response.raise_for_status()
-    return response.json()
+    try:
+        response = await client.post(url, json=payload)
+        response.raise_for_status()
+        try:
+            data = response.json()
+        except json.JSONDecodeError:
+            print(f"Error parsing JSON for query '{query}' with ranking difficulty {ranking_difficulty}: {response.text}")
+            return None
+        return data
+    except httpx.RequestError as e:
+        print(f"Network error for query '{query}' with ranking difficulty {ranking_difficulty}: {e}")
+        return None
+    except httpx.HTTPStatusError as e:
+        print(f"HTTP error for query '{query}' with ranking difficulty {ranking_difficulty}: {e}")
+        return None
 
-# Main function to run queries
-def main():
+async def process_query(query, config):
+    """Process a single query across the ranking difficulty range."""
+    results = []
+    async with httpx.AsyncClient() as client:
+        for ranking_difficulty in range(
+            int(config["rankingDifficultyStart"]), int(config["rankingDifficultyEnd"]) + 1
+        ):
+            data = await fetch_data(
+                client,
+                query,
+                ranking_difficulty,
+                int(config["searchVolumeMin"]),
+                config["searchVolumeMax"] if config["searchVolumeMax"] else None,
+            )
+            if data and "keywords" in data:
+                results.extend(data["keywords"])
+    return results
+
+def save_to_csv(results, filename="keywords_results.csv"):
+    """Save results to a CSV file."""
+    with open(filename, mode="w", newline="", encoding="utf-8") as csvfile:
+        fieldnames = ["query", "keyword", "searchVolume", "rankingDifficulty", "cpc"]
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        for result in results:
+            writer.writerow(result)
+
+def format_results(query, raw_results):
+    """Format raw API results for CSV writing."""
+    formatted = []
+    for keyword_data in raw_results:
+        formatted.append({
+            "query": query,
+            "keyword": keyword_data.get("keyword", ""),
+            "searchVolume": keyword_data.get("searchVolume", 0),
+            "rankingDifficulty": keyword_data.get("rankingDifficulty", 0),
+            "cpc": keyword_data.get("cpc", 0),
+        })
+    return formatted
+
+async def main():
     config = load_config()
-    queries = config["queries"]
-    ranking_difficulty_start = config["rankingDifficultyStart"]
-    ranking_difficulty_end = config["rankingDifficultyEnd"]
-    search_volume_min = config["searchVolumeMin"]
-    search_volume_max = config["searchVolumeMax"]
+    if not config["queries"]:
+        print("No queries provided.")
+        return
 
     all_results = []
+    for query in config["queries"]:
+        print(f"Processing query: {query}")
+        raw_results = await process_query(query, config)
+        all_results.extend(format_results(query, raw_results))
 
-    def process_batch(ranking_difficulty, query):
-        try:
-            data = fetch_data(ranking_difficulty, query, search_volume_min, search_volume_max)
-            keywords = data.get("keywords", [])
-            for keyword in keywords:
-                keyword["query"] = query  # Add query for tracking
-            all_results.extend(keywords)
-        except Exception as e:
-            print(f"Error fetching data for query '{query}' with ranking difficulty {ranking_difficulty}: {e}")
-
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        for query in queries:
-            executor.map(lambda rd: process_batch(rd, query), range(ranking_difficulty_start, ranking_difficulty_end + 1))
-
-    # Save results to CSV
-    with open(RESULT_FILE, mode="w", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=["query", "keyword", "searchVolume", "rankingDifficulty"])
-        writer.writeheader()
-        for result in all_results:
-            writer.writerow({
-                "query": result.get("query"),
-                "keyword": result.get("keyword"),
-                "searchVolume": result.get("searchVolume"),
-                "rankingDifficulty": result.get("rankingDifficulty")
-            })
-
-    print(f"Results saved to {RESULT_FILE}")
+    save_to_csv(all_results)
+    print("Results saved to keywords_results.csv.")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
