@@ -52,4 +52,14 @@ jobs:
           RANKING_DIFFICULTY_END: ${{ inputs.rankingDifficultyEnd }}
           SEARCH_VOLUME_MIN: ${{ inputs.searchVolumeMin }}
           SEARCH_VOLUME_MAX: ${{ inputs.searchVolumeMax }}
-          FILENAME: ${{ inputs.file
+          FILENAME: ${{ inputs.filename}}
+        run: |
+          python main.py
+      # Step 5: Commit results to repository
+      - name: Commit results
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add keyword analysis results"
+          git push
