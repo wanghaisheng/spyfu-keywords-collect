@@ -17,7 +17,7 @@ def load_config():
     if os.getenv("SEARCH_VOLUME_MAX"):
 
 
-    config["searchVolumeMax"]=int(os.getenv("SEARCH_VOLUME_MAX")
+        config["searchVolumeMax"]=int(os.getenv("SEARCH_VOLUME_MAX")
 
 
 
