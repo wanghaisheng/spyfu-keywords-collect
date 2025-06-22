@@ -43,7 +43,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install httpx
+          pip install httpx requests
 
       - name: Run Keyword Analysis Script
         env:
