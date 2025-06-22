@@ -11,7 +11,7 @@ def load_config():
         "rankingDifficultyStart": int(os.getenv("RANKING_DIFFICULTY_START", 1)),
         "rankingDifficultyEnd": int(os.getenv("RANKING_DIFFICULTY_END", 100)),
         "searchVolumeMin": int(os.getenv("SEARCH_VOLUME_MIN", 500)),
-        "searchVolumeMax": int(os.getenv("SEARCH_VOLUME_MAX",100)) if os.getenv("SEARCH_VOLUME_MAX") else None,
+        "searchVolumeMax": int(os.getenv("SEARCH_VOLUME_MAX",100)),
         "filename": os.getenv("FILENAME", "keywords_results.csv")
     }
 
