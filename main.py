@@ -14,8 +14,9 @@ def load_config():
         "filename": os.getenv("FILENAME", "keywords_results.csv")
     }
 
-    if os.getenv("SEARCH_VOLUME_MAX") is not None:
-
+    if os.getenv("SEARCH_VOLUME_MAX")==None:
+        pass
+    else:
 
         config["searchVolumeMax"]=int(os.getenv("SEARCH_VOLUME_MAX"))
 
